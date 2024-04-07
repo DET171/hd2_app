@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'utils/loadData.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'utils/loadData.dart';
 
 class PlanetsPage extends StatefulWidget {
   const PlanetsPage({Key? key}) : super(key: key);
@@ -20,7 +21,7 @@ class _PlanetsPageState extends State<PlanetsPage> {
   void initState() {
     super.initState();
     
-    fetchData().then((value) {
+    fetchData('https://helldiverstrainingmanual.com/api/v1/war/campaign').then((value) {
       setState(() {
         data = value;
       });
@@ -38,22 +39,13 @@ class _PlanetsPageState extends State<PlanetsPage> {
 
     Timer.periodic(Duration(seconds: 30), (Timer t) async {
       if (this.mounted) {
-        var value = await fetchData();
+        var value = await fetchData('https://helldiverstrainingmanual.com/api/v1/war/campaign');
         
         setState(() {
           data = value;
         });
       }
     });
-  }
-
-  Future<List<dynamic>> fetchData() async {
-    final response = await http.get(Uri.parse('https://helldiverstrainingmanual.com/api/v1/war/campaign'));
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Failed to load data');
-    }
   }
 
   @override
@@ -65,28 +57,186 @@ class _PlanetsPageState extends State<PlanetsPage> {
       ),
       backgroundColor: Theme.of(context).colorScheme.surface.withOpacity(0.15),
       body: ListView.builder(
+        padding: EdgeInsets.all(8.0),
         itemCount: data.length,
         itemBuilder: (context, index) {
           final campaignFront = data[index];
-          /* rough format:
-          {
-            "planetIndex": 152,
-            "name": "Durgen",
-            "faction": "Automatons",
-            "players": 131470,
-            "health": 355556,
-            "maxHealth": 1000000,
-            "percentage": 64.4444,
-            "defense": false,
-            "majorOrder": false,
-            "biome": {
-              "slug": "mesa",
-              "description": "A blazing-hot desert planet, it's rocky mesas are the sole interruptions to the endless sea of dunes."
-            },
-            "expireDateTime": null
-          } */
 
-          return Text('WIP');
+          String faction = campaignFront['faction'].toString().substring(0, campaignFront['faction'].toString().length - 1) + ' Control';
+
+          return FutureBuilder<dynamic>(
+            future: fetchData('https://helldiverstrainingmanual.com/api/v1/war/history/${campaignFront['planetIndex']}?timeframe=short'),
+            builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
+              if (snapshot.hasData) {
+                // You can access the data from snapshot.data
+                // TODO: Use the data to build your widget
+                /* returned data format:
+                [
+                  {
+                    "created_at": "2024-04-07T12:15:08.361967+00:00",
+                    "planet_index": 152,
+                    "current_health": 341941,
+                    "max_health": 1000000,
+                    "player_count": 137013
+                  },
+                  {
+                    "created_at": "2024-04-07T12:10:09.456448+00:00",
+                    "planet_index": 152,
+                    "current_health": 346239,
+                    "max_health": 1000000,
+                    "player_count": 135057
+                  }
+                ] */
+                // calculate the rate per hour at which the planet is being captured or lost
+
+                // equiv code in js
+                // function calculateTimeTo100(history) {
+                //   average = history.map(i => 100 - (100 / i.max_health * i.current_health)).reduce((a, b) => a + b, 0) / history.length || 0
+
+                //   const now = Date.now()
+                //   const firstEntryTime = history.length > 0 ? new Date(history[history.length - 1].created_at).getTime() : 0
+                //   const interval = Math.max(1, (now - firstEntryTime) / 1000)
+
+                //   const rateOfChange = interval > 0 ? (percentage - average) / interval : 0
+
+                //   const remainingPercentage = rateOfChange > 0 ? 100 - percentage : 0 + percentage
+                //   const timeToFilledInSeconds = remainingPercentage / rateOfChange
+
+                //   const unixTimeToFilled = now + timeToFilledInSeconds * 1000
+
+                //   estimatedEnd = Math.floor(unixTimeToFilled / 1000)
+                //   stalemate = Math.abs(unixTimeToFilled - now) > (1000 * 60 * 60 * 24 * 30) // 30 days
+                //   ratePerHour = stalemate ? 0 : rateOfChange * 60 * 60
+                // }
+
+                double average = snapshot.data.map((i) => 100 - (100 / i['max_health'] * i['current_health'])).reduce((a, b) => a + b) / snapshot.data.length;
+
+
+                final now = DateTime.now().millisecondsSinceEpoch;
+
+                final firstEntryTime = snapshot.data.length > 0 ? DateTime.parse(snapshot.data[snapshot.data.length - 1]['created_at']).millisecondsSinceEpoch : 0;
+
+                final interval = (now - firstEntryTime) / 1000;
+
+                final rateOfChange = interval > 0 ? (campaignFront['percentage'] - average) / interval : 0;
+
+
+                final remainingPercentage = rateOfChange > 0 ? 100 - campaignFront['percentage'] : 0 + campaignFront['percentage'];
+
+                var timeToFilledInSeconds = remainingPercentage / rateOfChange;
+
+                if (timeToFilledInSeconds.isNaN) {
+                  timeToFilledInSeconds = 31 * 24 * 60 * 60;
+                }
+
+                final unixTimeToFilled = now + timeToFilledInSeconds * 1000;
+
+                // convert estimatedEnd to a human readable format (hours, minutes, days, etc.)
+
+                final days = timeToFilledInSeconds ~/ 86400;
+                final hours = (timeToFilledInSeconds % 86400) ~/ 3600;
+                final minutes = ((timeToFilledInSeconds % 86400) % 3600) ~/ 60;
+
+                // take the greatest of days, hours, minutes
+                String estimatedEndFormatted = '';
+
+
+
+                final stalemate = (unixTimeToFilled - now).abs() > (1000 * 60 * 60 * 24 * 30); // 30 days
+                final ratePerHour = stalemate ? 0 : (rateOfChange * 60 * 60).toStringAsFixed(2);
+
+                if (timeToFilledInSeconds > 0) {
+                  // only include one non-zero time unit
+                  if (timeToFilledInSeconds == 30 * 24 * 60 * 60 || stalemate) {
+                    estimatedEndFormatted = 'Stalemate';
+                  } else if (days > 0) {
+                    estimatedEndFormatted = 'Liberty in $days days';
+                  } else if (hours > 0) {
+                    estimatedEndFormatted = 'Liberty in $hours hours';
+                  } else if (minutes > 0) {
+                    estimatedEndFormatted = 'Liberty in $minutes minutes';
+                  }
+                }
+                if (timeToFilledInSeconds < 0) {
+                  // Defeat in ...
+                  if (days < 0) {
+                    estimatedEndFormatted = 'Defeat in ${days.abs()} days';
+                  } else if (hours < 0) {
+                    estimatedEndFormatted = 'Defeat in ${hours.abs()} hours';
+                  } else if (minutes < 0) {
+                    estimatedEndFormatted = 'Defeat in ${minutes.abs()} minutes';
+                  }
+                }
+                if (estimatedEndFormatted == '') {
+                  estimatedEndFormatted = 'Liberty in less than a minute';
+                }
+
+
+                String rateOfChangeFormatted = '';
+
+                if (rateOfChange > 0) {
+                  rateOfChangeFormatted = 'Gaining ground at $ratePerHour% per hour';
+                }
+                else if (rateOfChange < 0) {
+                  rateOfChangeFormatted = 'Losing ground at $ratePerHour% per hour';
+                }
+                else {
+                  rateOfChangeFormatted = 'No change in progress';
+                }
+
+
+                print(ratePerHour);
+                print(timeToFilledInSeconds);
+                print(estimatedEndFormatted);
+
+
+                return Card(
+                  margin: EdgeInsets.all(10.0), // Increase the margin between cards
+                  child: Column(
+                    children: <Widget>[
+                      ClipRRect(
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(15.0),
+                          topRight: Radius.circular(15.0),
+                        ),
+                        child: Image.asset('static/biomes/${campaignFront['biome']['slug']}.jpg'),
+                      ),
+                      ListTile(
+                        title: Text(campaignFront['name']),
+                        subtitle: Text(faction),
+                        trailing: Text('${campaignFront['players']} players'),
+                      ),
+                      // show rate of change
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(15, 7, 15, 5),
+                        child: Text(rateOfChangeFormatted),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(15, 7, 15, 15),
+                        child: Text('$estimatedEndFormatted'),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(15, 7, 15, 15),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10.0),
+                          child: LinearProgressIndicator(
+                            minHeight: 10,
+                            value: campaignFront['percentage'] / 100,
+                            backgroundColor: Theme.of(context).colorScheme.secondary,
+                            valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+                          ),
+                        )
+                      ),
+                    ],
+                  ),
+                );
+              } else if (snapshot.hasError) {
+                return Text('Error: ${snapshot.error}');
+              } else {
+                return CircularProgressIndicator();
+              }
+            },
+          );
         },
       ),
     );
