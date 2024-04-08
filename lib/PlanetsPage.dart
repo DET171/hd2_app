@@ -213,7 +213,9 @@ class _PlanetsPageState extends State<PlanetsPage> {
               } else if (snapshot.hasError) {
                 return Text('Error: ${snapshot.error}');
               } else {
-                return CircularProgressIndicator();
+                return Center(
+                  child: CircularProgressIndicator(),
+                );
               }
             },
           );
