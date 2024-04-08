@@ -1,6 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+		<uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="hd2_app"
+        android:label="HD2 Tracker"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

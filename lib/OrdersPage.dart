@@ -85,11 +85,9 @@ class _OrdersPageState extends State<OrdersPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(data[index]['setting']['overrideTitle'], style: TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold)),
+                  Text(data[index]['setting']['taskDescription'], style: TextStyle(fontSize: 18.0, fontWeight: FontWeight.bold)),
                   SizedBox(height: 10.0),
                   Text(data[index]['setting']['overrideBrief']),
-                  SizedBox(height: 10.0),
-                  Text(data[index]['setting']['taskDescription']),
                   SizedBox(height: 10.0),
                   Text('Objectives:'),
                   ListView.builder(

@@ -4,6 +4,8 @@ import 'utils/loadData.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'utils/loadData.dart';
+import 'package:humanize_duration/humanize_duration.dart';
+
 
 class PlanetsPage extends StatefulWidget {
   const PlanetsPage({Key? key}) : super(key: key);
@@ -131,50 +133,27 @@ class _PlanetsPageState extends State<PlanetsPage> {
 
                 final unixTimeToFilled = now + timeToFilledInSeconds * 1000;
 
-                // convert estimatedEnd to a human readable format (hours, minutes, days, etc.)
-
-                final days = timeToFilledInSeconds ~/ 86400;
-                final hours = (timeToFilledInSeconds % 86400) ~/ 3600;
-                final minutes = ((timeToFilledInSeconds % 86400) % 3600) ~/ 60;
 
                 // take the greatest of days, hours, minutes
-                String estimatedEndFormatted = '';
+                String estimatedEndFormatted = humanizeDuration(Duration(seconds: timeToFilledInSeconds.toInt()), options: const HumanizeOptions(
+                  units: [Units.day, Units.hour, Units.minute],
+                ));
 
+                // add 'Liberty in' or 'Defeat in' to the beginning of the string
+                estimatedEndFormatted = rateOfChange > 0 ? 'Liberty in $estimatedEndFormatted' : 'Defeat in $estimatedEndFormatted';
 
 
                 final stalemate = (unixTimeToFilled - now).abs() > (1000 * 60 * 60 * 24 * 30); // 30 days
-                final ratePerHour = stalemate ? 0 : (rateOfChange * 60 * 60).toStringAsFixed(2);
 
-                if (timeToFilledInSeconds > 0) {
-                  // only include one non-zero time unit
-                  if (timeToFilledInSeconds == 30 * 24 * 60 * 60 || stalemate) {
-                    estimatedEndFormatted = 'Stalemate';
-                  } else if (days > 0) {
-                    estimatedEndFormatted = 'Liberty in $days days';
-                  } else if (hours > 0) {
-                    estimatedEndFormatted = 'Liberty in $hours hours';
-                  } else if (minutes > 0) {
-                    estimatedEndFormatted = 'Liberty in $minutes minutes';
-                  }
-                }
-                if (timeToFilledInSeconds < 0) {
-                  // Defeat in ...
-                  if (days < 0) {
-                    estimatedEndFormatted = 'Defeat in ${days.abs()} days';
-                  } else if (hours < 0) {
-                    estimatedEndFormatted = 'Defeat in ${hours.abs()} hours';
-                  } else if (minutes < 0) {
-                    estimatedEndFormatted = 'Defeat in ${minutes.abs()} minutes';
-                  }
-                }
-                if (estimatedEndFormatted == '') {
-                  estimatedEndFormatted = 'Liberty in less than a minute';
-                }
+                final ratePerHour = double.parse(stalemate ? '0' : (rateOfChange * 60 * 60).toStringAsFixed(2));
 
+                if (stalemate) estimatedEndFormatted = 'Stalemate';
 
                 String rateOfChangeFormatted = '';
 
+
                 if (rateOfChange > 0) {
+                  print(rateOfChange);
                   rateOfChangeFormatted = 'Gaining ground at $ratePerHour% per hour';
                 }
                 else if (rateOfChange < 0) {
@@ -184,20 +163,14 @@ class _PlanetsPageState extends State<PlanetsPage> {
                   rateOfChangeFormatted = 'No change in progress';
                 }
 
-
-                print(ratePerHour);
-                print(timeToFilledInSeconds);
-                print(estimatedEndFormatted);
-
-
                 return Card(
                   margin: EdgeInsets.all(10.0), // Increase the margin between cards
                   child: Column(
                     children: <Widget>[
                       ClipRRect(
                         borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(15.0),
-                          topRight: Radius.circular(15.0),
+                          topLeft: Radius.circular(12.0),
+                          topRight: Radius.circular(12.0),
                         ),
                         child: Image.asset('static/biomes/${campaignFront['biome']['slug']}.jpg'),
                       ),
@@ -219,11 +192,18 @@ class _PlanetsPageState extends State<PlanetsPage> {
                         padding: const EdgeInsets.fromLTRB(15, 7, 15, 15),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(10.0),
-                          child: LinearProgressIndicator(
-                            minHeight: 10,
-                            value: campaignFront['percentage'] / 100,
-                            backgroundColor: Theme.of(context).colorScheme.secondary,
-                            valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+                            child: TweenAnimationBuilder<double>(
+                            tween: Tween<double>(begin: 0, end: campaignFront['percentage'] / 100),
+                            duration: const Duration(seconds: 2),
+                            builder: (BuildContext context, double value, Widget? child) {
+                              return LinearProgressIndicator(
+                                minHeight: 10,
+                                value: value,
+                                // dark yellow if belongs to Terminids, red if belongs to automatons
+                                backgroundColor: campaignFront['faction'] == 'Automatons' ? Colors.red : const Color.fromARGB(255, 255, 173, 32),
+                                valueColor: AlwaysStoppedAnimation<Color>(const Color.fromARGB(255, 0, 141, 217)),
+                              );
+                            },
                           ),
                         )
                       ),

@@ -25,7 +25,7 @@ class _NewsPageState extends State<NewsPage> {
       var from = value['time'] - daysInSeconds;
 
       fetchData('https://helldiverstrainingmanual.com/api/v1/war/news?from=$from').then((value) {
-        print(value);
+        // sort by published date
 
         setState(() {
           newsData = value;
@@ -49,7 +49,8 @@ class _NewsPageState extends State<NewsPage> {
           var daysInSeconds = days * 24 * 60 * 60;
           var from = serverTimestamp - daysInSeconds;
 
-          fetchData('https://helldiverstrainingmanual.com/api/v1/war/news?from=$from').then((value) {    
+          fetchData('https://helldiverstrainingmanual.com/api/v1/war/news?from=$from').then((value) {
+ 
             setState(() {
               newsData = value;
             });
@@ -61,6 +62,10 @@ class _NewsPageState extends State<NewsPage> {
 
   @override
   Widget build(BuildContext context) {
+    newsData.sort((a, b) {
+      return b['published'].compareTo(a['published']);
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: Text('News and Updates'),
